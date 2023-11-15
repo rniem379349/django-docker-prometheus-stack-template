@@ -30,7 +30,6 @@ services:
     tty: true
     depends_on:
       - db
-      - redis
   db:
     <<: *common-config
     image: postgres

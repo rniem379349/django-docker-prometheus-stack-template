@@ -19,7 +19,15 @@ The alerts are defined to be sent through email and Slack. The emails can be int
 
 ## Deployment
 ### Running the project
-1. Clone the repo
-2. Set environment variables defined in `docker-compose.yml`, i.e. postgres connection credentials and Django secret key,
-2. Run `docker compose build && docker compose up`,
-3. Visit localhost to check the infrastructure. Use the ports defined in `docker-compose.yml` to navigate to specific containers.
+1. Clone the repo,
+2. Generate a secret for the Django app. You can use the `generate_secret.py` script by running `make generate_django_secret`,
+3. Set environment variables defined in `docker-compose.yml`, i.e. postgres connection credentials and the Django secret key from the previous step. For example, you could use an `.envrc` file with the following contents:
+```
+export PROJECT_MODE=dev
+export POSTGRES_DB=postgres
+export POSTGRES_USER=postgres
+export POSTGRES_PASSWORD=postgres
+export DJANGO_SECRET_KEY="<your_django_secret_key>"
+```
+4. Run `docker compose up --build`,
+5. Visit localhost to check the infrastructure. Use the ports defined in `docker-compose.yml` to navigate to specific containers.

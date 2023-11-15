@@ -10,7 +10,7 @@ groups:
 
   # Alerts
   - alert: CPU usage > 80% (1 min)
-    expr: 100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[1m])) * 100 > 2
+    expr: 100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[1m])) * 100 > 80
     for: 1m
     labels:
       severity: "high"
@@ -20,7 +20,7 @@ groups:
       description: "Server CPU usage exceeds 80% for more than 1 minute."
 
   - alert: CPU usage > 80% (10 min)
-    expr: 100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[1m])) * 100 > 2
+    expr: 100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[1m])) * 100 > 80
     for: 10m
     labels:
       severity: "critical"

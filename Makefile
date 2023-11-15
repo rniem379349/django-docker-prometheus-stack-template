@@ -8,6 +8,9 @@ requirements:
 test:
 	$(RUN) pytest
 
+generate_django_secret:
+	$(RUN) python django_app/generate_secret.py
+
 collectstatic:
 	$(RUN) python django_app/manage.py collectstatic
 
