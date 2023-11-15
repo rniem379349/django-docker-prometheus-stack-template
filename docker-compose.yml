@@ -1,0 +1,123 @@
+version: "3.9"
+
+x-common-config: &common-config
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *common-config
+    container_name: web
+    build:
+      context: .
+      args:
+        - PROJECT_MODE
+    command: python django_app/manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/code/
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SHELL=/bin/bash
+      - DJANGO_SETTINGS_MODULE=django_app.settings
+      - DJANGO_SECRET_KEY
+      - DEBUG
+      - POSTGRES_DB
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_HOST
+    ports:
+      - "8000:8000"
+    stdin_open: true
+    tty: true
+    depends_on:
+      - db
+      - redis
+  db:
+    <<: *common-config
+    image: postgres
+    container_name: postgres
+    environment:
+      - POSTGRES_DB
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+    ports:
+    - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data/
+  prometheus:
+    <<: *common-config
+    image: "prom/prometheus"
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./docker/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+  node_exporter:
+    <<: *common-config
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter
+    volumes:
+      - /:/rootfs:ro
+    command:
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|var/lib/docker/.+)($|/)'
+    ports:
+      - "9100:9100"
+  prom_alertmanager:
+    <<: *common-config
+    image: quay.io/prometheus/alertmanager
+    container_name: prom_alertmanager
+    volumes:
+      - ./docker/prometheus/alertmanager/alertmanager.yml:/etc/alertmanager.yml
+      - ./docker/prometheus/alertmanager/templates:/etc/alertmanager/templates
+    command:
+      - "--config.file=/etc/alertmanager.yml"
+    ports:
+      - "9093:9093"
+  grafana:
+    <<: *common-config
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./docker/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana_data:/var/lib/grafana
+  loki:
+    <<: *common-config
+    image: grafana/loki:2.9.0
+    container_name: loki
+    command: -config.file=/etc/loki/local-config.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+      - ./docker/loki/loki-config.yml:/etc/loki/local-config.yml
+  promtail:
+    <<: *common-config
+    image: grafana/promtail:2.9.0
+    container_name: promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker/sock:/var/run/docker/sock
+      - ./docker/promtail/promtail-config.yml:/etc/promtail/config.yml
+
+  # Mailhog for local Prometheus alert email testing
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    logging:
+      driver: "none"
+    ports:
+      - 1025:1025 # SMTP server
+      - 8025:8025 # HTTP UI
+
+volumes:
+  pgdata:
+  prometheus_data:
+  grafana_data:
+  loki_data:

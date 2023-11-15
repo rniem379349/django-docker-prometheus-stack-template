@@ -1,0 +1,9 @@
+# Regular messages
+{{ define "email.django-app.title" }}
+[{{ .CommonLabels.severity | toUpper }}] [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}
+{{ end }}
+
+# Critical messages
+{{ define "email.django-app.title_critical" }}
+[{{ .CommonLabels.severity | toUpper }} - ACTION REQUIRED] [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}
+{{ end }}

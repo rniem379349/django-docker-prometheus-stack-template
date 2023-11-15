@@ -1,0 +1,148 @@
+global:
+  # The smarthost and SMTP sender used for mail notifications.
+  smtp_smarthost: 'mailhog:1025' # MailHog local SMTP server
+  smtp_from: 'alertmanager@djangoapp.org'
+  # MailHog doesn't support TLS out of the box, so for testing purposes we switch it off
+  smtp_require_tls: false
+  # Default (fallback) Slack API URL
+  slack_api_url: 'https://hooks.slack.com/services/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAA' # placeholder
+
+# The root route on which each incoming alert enters.
+route:
+  # The root route must not have any matchers as it is the entry point for
+  # all alerts. It needs to have a receiver configured so alerts that do not
+  # match any of the sub-routes are sent to someone.
+  receiver: 'django-app-dev-alerts'
+
+  # The labels by which incoming alerts are grouped together. For example,
+  # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
+  # be batched into a single group.
+  #
+  # To aggregate by all possible labels use '...' as the sole label name.
+  # This effectively disables aggregation entirely, passing through all
+  # alerts as-is. This is unlikely to be what you want, unless you have
+  # a very low alert volume or your upstream notification system performs
+  # its own grouping. Example: group_by: [...]
+  group_by: ['alertname', 'cluster']
+
+  # When a new group of alerts is created by an incoming alert, wait at
+  # least 'group_wait' to send the initial notification.
+  # This way ensures that you get multiple alerts for the same group that start
+  # firing shortly after another are batched together on the first
+  # notification.
+  group_wait: 30s
+
+  # When the first notification was sent, wait 'group_interval' to send a batch
+  # of new alerts that started firing for that group.
+  group_interval: 5m
+
+  # If an alert has successfully been sent, wait 'repeat_interval' to
+  # resend them.
+  repeat_interval: 3h
+
+  # All the above attributes are inherited by all child routes and can
+  # overwritten on each.
+
+  # The child route trees.
+  routes:
+    # This routes performs a regular expression match on alert labels to
+    # catch alerts that are related to a list of services.
+    - matchers:
+        - alerttype="webapp"
+      receiver: django-app-webapp-alerts
+
+      # The service has a sub-route for critical alerts, any alerts
+      # that do not match, i.e. severity != critical, fall-back to the
+      # parent node and are sent to 'django-app-webapp-alerts'
+      routes:
+        - matchers:
+            - severity="critical"
+          receiver: django-app-webapp-critical
+
+    - matchers:
+        - alerttype="server"
+      receiver: django-app-server-alerts
+
+      # The service has a sub-route for critical alerts, any alerts
+      # that do not match, i.e. severity != critical, fall-back to the
+      # parent node and are sent to 'django-app-server-alerts'
+      routes:
+        - matchers:
+            - severity="critical"
+          receiver: django-app-server-critical
+
+# Inhibition rules allow to mute a set of alerts given that another alert is
+# firing.
+# We use this to mute any warning-level notifications if the same alert is
+# already critical.
+inhibit_rules:
+- source_matchers:
+    - severity="critical"
+  target_matchers:
+    - severity="warning"
+    - severity="high"
+  # Apply inhibition if the alertname is the same.
+  # CAUTION:
+  #   If all label names listed in `equal` are missing
+  #   from both the source and target alerts,
+  #   the inhibition rule will apply!
+  equal: ['alertname']
+
+receivers:
+# Default (fallback) receiver - used if alerts doesn't match anything
+- name: 'django-app-dev-alerts'
+  email_configs:
+    - to: 'alerts@djangoapp.org'
+  slack_configs:
+    - channel: '#alerts_dev'
+      title: "[{{ .CommonLabels.severity | toUpper }}] [{{ .Status | toUpper }}{{ if eq .Status \"firing\" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join \" \" }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join \" \" }}{{ end }}){{ end }}"
+      text: "<!channel> \nSummary: {{ .CommonAnnotations.summary }}\nDescription: {{ .CommonAnnotations.description }}"
+
+- name: 'django-app-webapp-alerts'
+  email_configs:
+    - to: 'webapp_alerts@djangoapp.org'
+      headers:
+        subject: '{{ template "email.django-app.title" . }}'
+  slack_configs:
+    - api_url: 'https://hooks.slack.com/services/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAA' # placeholder
+      channel: '#alerts_webapp'
+      title: '{{ template "slack.django-app.title" . }}'
+      text: '{{ template "slack.django-app.text" . }}'
+
+- name: 'django-app-server-alerts'
+  email_configs:
+    - to: 'server_alerts@djangoapp.org'
+      headers:
+        subject: '{{ template "email.django-app.title" . }}'
+  slack_configs:
+    - api_url: 'https://hooks.slack.com/services/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAA' # placeholder
+      channel: '#alerts_server'
+      title: '{{ template "slack.django-app.title" . }}'
+      text: '{{ template "slack.django-app.text" . }}'
+
+# Configs for critical alerts
+- name: 'django-app-webapp-critical'
+  email_configs:
+    - to: 'webapp_alerts_critical@djangoapp.org'
+      headers:
+        subject: '{{ template "email.django-app.title_critical" . }}'
+  slack_configs:
+    - api_url: 'https://hooks.slack.com/services/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAA' # placeholder
+      channel: '#alerts_server'
+      title: '{{ template "slack.django-app.title_critical" . }}'
+      text: '{{ template "slack.django-app.text_critical" . }}'
+
+- name: 'django-app-server-critical'
+  email_configs:
+    - to: 'server_alerts_critical@djangoapp.org'
+      headers:
+        subject: '{{ template "email.django-app.title_critical" . }}'
+  slack_configs:
+    - api_url: 'https://hooks.slack.com/services/AAAAAAAAAAA/AAAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAA' # placeholder
+      channel: '#alerts_server'
+      title: '{{ template "slack.django-app.title_critical" . }}'
+      text: '{{ template "slack.django-app.text_critical" . }}'
+
+# Custom alert templates
+templates:
+  - "/etc/alertmanager/templates/*.tmpl"
